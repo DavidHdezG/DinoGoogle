@@ -1,8 +1,19 @@
 package ml;
+import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
+import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
+import org.deeplearning4j.nn.conf.layers.DenseLayer;
+import org.deeplearning4j.nn.conf.layers.OutputLayer;
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
+import org.nd4j.linalg.activations.Activation;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.lossfunctions.LossFunctions;
 import processing.core.*;
 import processing.core.PImage;
-import java.util.ArrayList;
-import java.util.Collections;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DinoGoogle extends PApplet{
     PImage dinoRun1;
@@ -30,16 +41,19 @@ public class DinoGoogle extends PApplet{
     int groundHeight = 50;
     int playerXpos = 100;
     int highScore = 0;
-    ArrayList<Playerjeje> dino = new ArrayList<>();
-
+    boolean firstObstacle=false;
+    List<Player> dino = new ArrayList<>();
+    Population population = new Population();
+    List<Player> pl;
     @Override
     public void settings(){
         size(800, 400);
-        frameRate(60);
+
     }
 
     @Override
     public void setup(){
+        frameRate(60);
         dinoRun1 = loadImage("dinorun0000.png");
         dinoRun2 = loadImage("dinorun0001.png");
         dinoJump = loadImage("dinoJump0000.png");
@@ -51,9 +65,7 @@ public class DinoGoogle extends PApplet{
         bird = loadImage("berd.png");
         bird1 = loadImage("berd2.png");
 
-        for(int x=0; x<1000; x++){
-            dino.add(new Playerjeje(x));
-        }
+        dino=population.firstPopulation();
     }
 
     @Override
@@ -102,6 +114,16 @@ public class DinoGoogle extends PApplet{
         }
     }
 
+    public void runGame(){
+
+        //List<Player> pl = population.firstPopulation();
+        for (int i = 0; i < 10; i++) {
+            population.act(pl.get(i).getId(), new float[]{new Random().nextFloat(), new Random().nextFloat(), new Random().nextFloat(), new Random().nextFloat()});
+            population.updateScore(pl.get(i).getId(), new Random().nextInt(100));
+            population.nextPopulation();
+        }
+    }
+
     public void keyReleased(){
         boolean alldead = true;
 
@@ -130,13 +152,14 @@ public class DinoGoogle extends PApplet{
         boolean alive = false;
 
         showObstacles();
-        for(int x=0; x<dino.size(); x++){
-            dino.get(x).show();
+        for (Player item : dino) {
+            item.show();
         }
 
-        for(int x=0; x<dino.size(); x++){
-            if(!dino.get(x).dead){
+        for (Player value : dino) {
+            if (!value.dead) {
                 alive = true;
+                break;
             }
         }
 
@@ -152,8 +175,10 @@ public class DinoGoogle extends PApplet{
                 grounds.add(new Ground());
             }
             moveObstacles();
-            for(int x=0; x<dino.size(); x++){
-                dino.get(x).update();
+            for (Player player : dino) {
+                if(firstObstacle){
+                    player.update();
+                }
             }
         }
 
@@ -181,11 +206,13 @@ public class DinoGoogle extends PApplet{
     void addObstacle(){
         if(random(1) < 0.15){
             birds.add(new Bird(floor(random(3))));
+
         }
         else{
             obstacles.add(new Obstacle(floor(random(3))));
         }
         randomAddition = floor(random(50));
+        firstObstacle=true;
         obstacleTimer = 0;
     }
 
@@ -214,10 +241,8 @@ public class DinoGoogle extends PApplet{
     }
 
     void reset(){
-        dino.clear();
-        for(int x=0; x<1000; x++){
-            dino.add(new Playerjeje(0));
-        }
+
+        population.nextPopulation();
         obstacles = new ArrayList<Obstacle>();
         birds = new ArrayList<Bird>();
         grounds = new ArrayList<Ground>();
@@ -226,6 +251,7 @@ public class DinoGoogle extends PApplet{
         randomAddition = floor(random(50));
         groundCounter = 0;
         speed = 10;
+
     }
     class Bird{
         float w = 60;
@@ -351,7 +377,11 @@ public class DinoGoogle extends PApplet{
             return false;
         }
     }
-    class Playerjeje{
+    class Player{
+        private String id;
+        private MultiLayerNetwork brain;
+        private int noInputs=5;
+        private int noOutputs=2;
         float posY = 0;
         float velY = 0;
         float gravity = 1.2f;
@@ -364,10 +394,81 @@ public class DinoGoogle extends PApplet{
         public int score;
         public int gene;
 
-        Playerjeje(float posYatribute){
+        Player(INDArray weights){
+            this.createBrain();
+            this.brain.init(weights,true);
+            this.id = UUID.randomUUID().toString();
+        }
+        Player(float posYatribute){
             posY = posYatribute;
+            this.createBrain();
+            this.brain.init();
+            this.id = UUID.randomUUID().toString();
         }
 
+        public Player() {
+            this.createBrain();
+            this.brain.init();
+            this.id = UUID.randomUUID().toString();
+        }
+
+        private void createBrain(){
+            MultiLayerConfiguration config = new NeuralNetConfiguration.Builder()
+                    .list()
+                    .layer(0, new DenseLayer.Builder().nIn(noInputs).nOut(30).activation(Activation.RELU).build())
+                    .layer(1, new OutputLayer.Builder().lossFunction(LossFunctions.LossFunction.MSE).nIn(30).nOut(noOutputs).activation(Activation.SIGMOID).build())
+                    .build();
+            this.brain = new MultiLayerNetwork(config);
+        }
+        public float[] act(float[] inputs){
+            float[] outputs = this.brain.output(Nd4j.create(new float[][] { inputs })).toFloatVector();
+            if(outputs[0] > outputs[1]){
+                this.ducking(true);
+            }else{
+                this.jump();
+            }
+            return outputs;
+        }
+
+        public Player[] crossover(Player parent2){
+            Player parent1 = this;
+
+            long numOfWeights = parent1.brain.numParams();
+
+            INDArray weights1 = Nd4j.create(1,numOfWeights);
+            INDArray weights2 = Nd4j.create(1,numOfWeights);
+
+            for (int i = 0; i < numOfWeights; i ++) {
+                if (i < Math.floor(numOfWeights/2)) {
+                    weights1.putScalar(0,i,parent1.brain.params().getScalar(i).getFloat(0));
+                    weights2.putScalar(0,i,parent2.brain.params().getScalar(i).getFloat(0));
+                } else {
+                    weights1.putScalar(0,i,parent2.brain.params().getScalar(i).getFloat(0));
+                    weights2.putScalar(0,i,parent1.brain.params().getScalar(i).getFloat(0));
+                }
+            }
+            return new Player[] {new Player(weights1), new Player(weights2)};
+        }
+
+        public void mutate(float mutationRate){
+            for (int i = 0; i < this.brain.numParams(); i ++) {
+                if (Math.random() < mutationRate) {
+                    this.brain.params().putScalar(i, Math.random() * 2 - 1);
+                }
+            }
+        }
+
+        public void setScore(int score){
+            this.score = score;
+        }
+
+        public int getScore(){
+            return this.score;
+        }
+
+        public String getId(){
+            return this.id;
+        }
         void jump(){
             if(posY == 0){
                 gravity = (float) 1.2;
@@ -452,7 +553,23 @@ public class DinoGoogle extends PApplet{
 
         void update(){
             incrementCounter();
+
             move();
+            population.act(this.getId(), this.act(this.getInputs()));
+        }
+
+        public float[] getInputs(){
+            Obstacle closestObstacle = null;
+            for (Obstacle obstacle : obstacles) {
+                if (obstacle==null) {
+                    break;
+
+                }else{
+                    closestObstacle = obstacle;
+                }
+            }
+            assert closestObstacle != null;
+            return new float[] {this.posY,this.velY,closestObstacle.w,closestObstacle.h,closestObstacle.posX};
         }
 
         void incrementCounter(){
@@ -462,5 +579,55 @@ public class DinoGoogle extends PApplet{
             }
         }
     }
+    class Population {
+        private final RouletteWheelSelection geneticAlgorithm = new RouletteWheelSelection();
+        private List<Player> creatures ;
+        private int noOfPlayers = 30;
 
+        public List<Player> firstPopulation() {
+            creatures = Stream.generate(Player::new).limit(noOfPlayers).collect(Collectors.toList());
+            //System.out.println(player.getId());
+            return creatures;
+        }
+
+        public void nextPopulation() {
+            List<Player> deadPlayers = new ArrayList<>(creatures);
+            creatures.clear();
+
+            for (int i = 0; i < deadPlayers.size() / 2; i++) {
+                List<Player> parents = geneticAlgorithm.select(deadPlayers, true, 2, new Random());
+
+                Player[] children = parents.get(0).crossover(parents.get(1));
+
+                children[0].mutate((float) 0.05);
+                children[1].mutate((float) 0.05);
+
+                for (Player player : children) {
+                    System.out.println(player.getId());
+                }
+
+                creatures.addAll(Arrays.asList(children));
+            }
+        }
+
+        public float[] act(String id, float[] inputs) {
+            Player player = getById(id);
+            return player.act(inputs);
+        }
+
+        public void updateScore(String id, int score) {
+            Player player = getById(id);
+            player.setScore(score);
+        }
+
+        public Player getById(String id) {
+            return creatures.stream().filter(creature -> creature.getId().equals(id)).findFirst().get();
+        }
+
+    }
+    public static void main(String[] args) {
+        String[] procArgs = {"Game"};
+        DinoGoogle app = new DinoGoogle();
+        PApplet.runSketch(procArgs, app);
+    }
 }
