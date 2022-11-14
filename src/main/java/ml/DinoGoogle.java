@@ -346,6 +346,12 @@ public class DinoGoogle extends PApplet{
             }
         }
 
+        Obstacle( float x, int w, int h){
+            posX = x;
+            this.w = w;
+            this.h = h;
+        }
+
         void show(){
             switch(type){
                 case 0: image(smallCactus, posX - smallCactus.width / 2, height - groundHeight - smallCactus.height);
@@ -382,7 +388,7 @@ public class DinoGoogle extends PApplet{
         private MultiLayerNetwork brain;
         private int noInputs=5;
         private int noOutputs=2;
-        float posY = 0;
+        float posY =0 ;
         float velY = 0;
         float gravity = 1.2f;
         int size = 20;
@@ -421,6 +427,7 @@ public class DinoGoogle extends PApplet{
             this.brain = new MultiLayerNetwork(config);
         }
         public float[] act(float[] inputs){
+
             float[] outputs = this.brain.output(Nd4j.create(new float[][] { inputs })).toFloatVector();
             if(outputs[0] > outputs[1]){
                 this.ducking(true);
@@ -553,24 +560,23 @@ public class DinoGoogle extends PApplet{
 
         void update(){
             incrementCounter();
-
+            float[] inputs = this.getInputs();
             move();
-            population.act(this.getId(), this.act(this.getInputs()));
+            population.act(this.getId(), this.act(inputs));
         }
 
         public float[] getInputs(){
-            Obstacle closestObstacle = null;
-            for (Obstacle obstacle : obstacles) {
-                if (obstacle==null) {
-                    break;
-
-                }else{
-                    closestObstacle = obstacle;
-                }
-            }
-            assert closestObstacle != null;
-            return new float[] {this.posY,this.velY,closestObstacle.w,closestObstacle.h,closestObstacle.posX};
+            return new float[] {this.posY,this.velY,100,200,2000};
         }
+
+        public float getDistance(Obstacle obstacle){
+            return (float) obstacle.posX - playerXpos;
+        }
+
+        public float getDistance(Bird bird){
+            return (float) bird.posX - playerXpos;
+        }
+
 
         void incrementCounter(){
             lifespan++;
@@ -612,6 +618,9 @@ public class DinoGoogle extends PApplet{
 
         public float[] act(String id, float[] inputs) {
             Player player = getById(id);
+            for(float input : inputs){
+                System.out.println(input);
+            }
             return player.act(inputs);
         }
 
