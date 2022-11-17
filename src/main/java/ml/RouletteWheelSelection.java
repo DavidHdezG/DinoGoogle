@@ -38,10 +38,10 @@ public class RouletteWheelSelection
      * @param rng                  A source of randomness.
      * @return The selected candidates.
      */
-    public List<DinoGoogle.Player> select(List<DinoGoogle.Player> population,
-                                          boolean naturalFitnessScores,
-                                          int selectionSize,
-                                          Random rng)
+    public List<Main.Dino> select(List<Main.Dino> population,
+                                  boolean naturalFitnessScores,
+                                  int selectionSize,
+                                  Random rng)
     {
         // Record the cumulative fitness scores.  It doesn't matter whether the
         // population is sorted or not.  We will use these cumulative scores to work out
@@ -51,16 +51,16 @@ public class RouletteWheelSelection
         // proportional to the probability of the corresponding candidate in the population
         // being selected.
         double[] cumulativeFitnesses = new double[population.size()];
-        cumulativeFitnesses[0] = getAdjustedFitness(population.get(0).getScore(),
+        cumulativeFitnesses[0] = getAdjustedFitness(population.get(0).getFitness(),
                 naturalFitnessScores);
         for (int i = 1; i < population.size(); i++)
         {
-            double fitness = getAdjustedFitness(population.get(i).getScore(),
+            double fitness = getAdjustedFitness(population.get(i).getFitness(),
                     naturalFitnessScores);
             cumulativeFitnesses[i] = cumulativeFitnesses[i - 1] + fitness;
         }
 
-        List<DinoGoogle.Player> selection = new ArrayList<>(selectionSize);
+        List<Main.Dino> selection = new ArrayList<>(selectionSize);
         for (int i = 0; i < selectionSize; i++)
         {
             double randomFitness = rng.nextDouble() * cumulativeFitnesses[cumulativeFitnesses.length - 1];
@@ -75,6 +75,7 @@ public class RouletteWheelSelection
         return selection;
     }
 
+    // MANEJAR CUANDO ES 0, creo que siempre usa 0 como distancia
 
     private double getAdjustedFitness(double rawFitness,
                                       boolean naturalFitness)
