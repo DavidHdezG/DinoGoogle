@@ -8,50 +8,33 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Population {
-    private RouletteWheelSelection geneticAlgorithm = new RouletteWheelSelection();
-    private List<Player> creatures ;
-    private int noOfPlayers = 30;
+    private final RouletteWheelSelection geneticAlgorithm=new RouletteWheelSelection();
+    private final List<Dino> creatures= new ArrayList<>();
+    private final int noOfPlayers = 100;
 
-    public List<Player> firstPopulation() {
-        creatures = Stream.generate(Player::new).limit(noOfPlayers).collect(Collectors.toList());
-        for (Player player : creatures) {
-            //System.out.println(player.getId());
+    public List<Dino> firstPopulation() {
+
+        for (int i = 0; i < noOfPlayers; i++) {
+            creatures.add(new Dino());
         }
+        //creatures = Stream.generate(Dino::new).limit(noOfPlayers).collect(Collectors.toList());
         return creatures;
     }
 
-    public void nextPopulation() {
-        List<Player> deadPlayers = new ArrayList<>(creatures);
+    public List<Dino> nextPopulation() {
+        List<Dino> deadPlayers = new ArrayList<>(creatures);
         creatures.clear();
 
-        for (int i = 0; i < deadPlayers.size() / 2; i++) {
-            List<Player> parents = geneticAlgorithm.select(deadPlayers, true, 2, new Random());
+        for (int i = 0; i < deadPlayers.size()/2; i ++) {
+            List<Dino> parents = geneticAlgorithm.select(deadPlayers, true, 2, new Random());
 
-            Player[] children = parents.get(0).crossover(parents.get(1));
+            Dino[] children = parents.get(0).crossover(parents.get(1));
 
             children[0].mutate((float) 0.05);
             children[1].mutate((float) 0.05);
 
-            for (Player player : children) {
-                System.out.println(player.getId());
-            }
-
             creatures.addAll(Arrays.asList(children));
         }
+        return creatures;
     }
-
-    public float[] act(String id, float[] inputs) {
-        Player player = getById(id);
-        return player.act(inputs);
-    }
-
-    public void updateScore(String id, int score) {
-        Player player = getById(id);
-        player.setScore(score);
-    }
-
-    public Player getById(String id) {
-        return creatures.stream().filter(creature -> creature.getId().equals(id)).findFirst().get();
-    }
-
 }
